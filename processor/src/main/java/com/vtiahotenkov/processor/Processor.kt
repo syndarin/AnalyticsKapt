@@ -1,6 +1,5 @@
 package com.vtiahotenkov.processor
 
-import com.google.auto.service.AutoService
 import com.squareup.kotlinpoet.FileSpec
 import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.KModifier
@@ -28,13 +27,12 @@ import javax.lang.model.element.TypeElement
 import javax.tools.Diagnostic
 import kotlin.reflect.KClass
 
-@AutoService(Processor::class)
+//@AutoService(Processor::class)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 @SupportedOptions(KAPT_KOTLIN_GENERATED_OPTION_NAME)
 class Processor : AbstractProcessor() {
 
     private lateinit var messager: Messager
-    private lateinit var filer: Filer
 
     override fun getSupportedAnnotationTypes(): MutableSet<String> =
         hashSetOf(PayloadEvent::class.java.canonicalName)
@@ -42,7 +40,6 @@ class Processor : AbstractProcessor() {
     override fun init(processingEnv: ProcessingEnvironment) {
         super.init(processingEnv)
         messager = processingEnv.messager
-        filer = processingEnv.filer
     }
 
     override fun process(p0: MutableSet<out TypeElement>, p1: RoundEnvironment): Boolean {
@@ -111,7 +108,7 @@ class Processor : AbstractProcessor() {
                 buildCodeBlock {
                     add("hashMapOf(\n")
                     elements.forEach { element ->
-                        add("%L::class.java to MapSerializer<%L> { v -> hashMapOf(\n", element.toString(), element.toString())
+                        add("%L::class.java to %T<%L> { v -> hashMapOf(\n", element.toString(), MapSerializer::class.java, element.toString())
                         processingEnv.elementUtils.getAllMembers(element as TypeElement)
                             .filter { it.kind == ElementKind.FIELD }
                             .forEach {

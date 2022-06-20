@@ -13,4 +13,3 @@ annotation class AnalyticsEvent(
     val eventName: String,
     val configs: Array<TrackingConfig>
 )
-
