@@ -1,25 +1,26 @@
 package com.vtiahotenkov.processor
 
 import com.vtiahotenkov.processor.AnalyticsEventProcessor.Companion.KAPT_KOTLIN_GENERATED_OPTION_NAME
+import com.vtiahotenkov.processor.annotations.AnalyticsEvent
 import com.vtiahotenkov.processor.poets.EventNamesPoet
+import com.vtiahotenkov.processor.poets.PropertiesPoet
 import java.io.File
 import javax.annotation.processing.AbstractProcessor
 import javax.annotation.processing.RoundEnvironment
 import javax.annotation.processing.SupportedOptions
 import javax.annotation.processing.SupportedSourceVersion
 import javax.lang.model.SourceVersion
+import javax.lang.model.element.Element
 import javax.lang.model.element.TypeElement
 import javax.tools.Diagnostic
-import kotlinx.metadata.Flag
 import kotlinx.metadata.KmClass
-import kotlinx.metadata.jvm.KotlinClassHeader
-import kotlinx.metadata.jvm.KotlinClassMetadata
 
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 @SupportedOptions(KAPT_KOTLIN_GENERATED_OPTION_NAME)
 class AnalyticsEventProcessor : AbstractProcessor() {
 
     private val eventNamesPoet by lazy { EventNamesPoet() }
+    private val propertiesPoet by lazy { PropertiesPoet() }
 
     override fun getSupportedAnnotationTypes(): MutableSet<String> =
         mutableSetOf(AnalyticsEvent::class.java.canonicalName)
@@ -31,43 +32,21 @@ class AnalyticsEventProcessor : AbstractProcessor() {
 
         // structure is like <platform, <class name, event name>>
         val nameConfigs: MutableMap<String, MutableMap<String, String>> = hashMapOf()
+        val classesMetadata = arrayListOf<KmClass>()
+
         elements.forEach { e ->
 
+            e.getAnnotation(Metadata::class.java).toKmClass()?.let {
+                classesMetadata.add(it)
+            } ?: run {
+                processingEnv.messager.printMessage(Diagnostic.Kind.WARNING, "Metadata not found for ${e.asType()}")
+            }
+
             val annotation = e.getAnnotation(AnalyticsEvent::class.java)
-            val metadata: KmClass? = e.getAnnotation(Metadata::class.java).let {
-                KotlinClassMetadata.read(
-                    KotlinClassHeader(
-                        kind = it.kind,
-                        metadataVersion = it.metadataVersion,
-                        data1 = it.data1,
-                        data2 = it.data2,
-                        extraString = it.extraString,
-                        packageName = it.packageName,
-                        extraInt = it.extraInt,
-                    )
-                ) as? KotlinClassMetadata.Class
-            }?.toKmClass()
-
-
-            metadata?.let {
-                processingEnv.messager.printMessage(Diagnostic.Kind.NOTE, "===== ${it.name}")
-                it.properties.forEach {
-                    processingEnv.messager.printMessage(Diagnostic.Kind.NOTE, "${it.name}")
-                }
-                processingEnv.messager.printMessage(Diagnostic.Kind.NOTE, "is object: ${Flag.Class.IS_OBJECT.invoke(it.flags)}")
-                processingEnv.messager.printMessage(Diagnostic.Kind.NOTE, "is data: ${Flag.Class.IS_DATA.invoke(it.flags)}")
-            }
-
-            if (annotation.eventName.isBlank()) {
-                val message = "Event name for ${e.simpleName} is empty"
-                processingEnv.messager.printMessage(Diagnostic.Kind.ERROR, message)
-                error(message)
-            }
-
-            if (annotation.configs.isEmpty()) {
-                val message = "At least one target for ${e.simpleName} must be configured"
-                processingEnv.messager.printMessage(Diagnostic.Kind.ERROR, message)
-                error(message)
+            val errorMessage = validateAnnotation(annotation, e)
+            if (errorMessage != null) {
+                processingEnv.messager.printMessage(Diagnostic.Kind.ERROR, errorMessage)
+                error(errorMessage)
             }
 
             annotation.configs.forEach {
@@ -84,10 +63,23 @@ class AnalyticsEventProcessor : AbstractProcessor() {
             eventNamesPoet.compose(targetDir, nameConfigs)
         }
 
+        if (classesMetadata.isNotEmpty() && targetDir != null) {
+            propertiesPoet.compose(targetDir, classesMetadata)
+        }
+
         return true
     }
 
-    private fun getTargetDir() = processingEnv.options[Processor.KAPT_KOTLIN_GENERATED_OPTION_NAME]?.let { File(it) }
+    private fun validateAnnotation(annotation: AnalyticsEvent, annotatedElement: Element): String? =
+        when {
+            annotation.eventName.isBlank() ->
+                "Event name for ${annotatedElement.simpleName} is blank"
+            annotation.configs.isEmpty() ->
+                "At least one tracking target for class ${annotatedElement.simpleName} must be configured"
+            else -> null
+        }
+
+    private fun getTargetDir() = processingEnv.options[KAPT_KOTLIN_GENERATED_OPTION_NAME]?.let { File(it) }
 
     companion object {
         const val KAPT_KOTLIN_GENERATED_OPTION_NAME = "kapt.kotlin.generated"

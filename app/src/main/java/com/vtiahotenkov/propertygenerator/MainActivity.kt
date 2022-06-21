@@ -2,8 +2,8 @@ package com.vtiahotenkov.propertygenerator
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import com.vtiahotenkov.processor.AnalyticsEvent
-import com.vtiahotenkov.processor.TrackingConfig
+import com.vtiahotenkov.processor.annotations.AnalyticsEvent
+import com.vtiahotenkov.processor.annotations.TrackingConfig
 import getMapper
 
 class MainActivity : AppCompatActivity() {
@@ -11,33 +11,18 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        consumeDto(UserDto("Alice", 25))
-        consumeDto(Stub("Stub DTO"))
-        consumeDto(Other("Other DTO"))
+        val analytics = initAnalytics()
 
+        analytics.track(FirstEvent("I'm a payload of FirstEvent"))
+        analytics.track(SecondEvent)
+        analytics.track(ThirdEvent("Third String", 3))
     }
 
-    private fun consumeDto(dto: ConsumableDto) {
-        println("Consuming: ${getMapper(dto).toMap(dto)}")
+    private fun initAnalytics(): Analytics {
+        return Analytics(listOf(
+            Tracker(FIREBASE, AnalyticsEventsNames.firebase),
+            Tracker(MIXPANEL, AnalyticsEventsNames.mixpanel),
+            Tracker(SINGULAR, AnalyticsEventsNames.singular),
+        ))
     }
 }
-
-@AnalyticsEvent(
-    eventName = "first_event",
-    configs = [
-        TrackingConfig(target = "firebase"),
-        TrackingConfig(target = "mixpanel", overriddenName = "first_event_overridden_name")
-    ]
-)
-data class FirstEvent(
-    val payload: String
-)
-
-@AnalyticsEvent(
-    eventName = "second_event",
-    configs = [
-        TrackingConfig(target = "firebase"),
-        TrackingConfig(target = "mixpanel", overriddenName = "second_event_overidden_name")
-    ]
-)
-object SecondEvent

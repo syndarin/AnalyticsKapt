@@ -1,4 +1,4 @@
-package com.vtiahotenkov.processor
+package com.vtiahotenkov.processor.annotations
 
 @Target(AnnotationTarget.ANNOTATION_CLASS)
 @Retention(AnnotationRetention.SOURCE)
